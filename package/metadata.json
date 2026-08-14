@@ -1,0 +1,15 @@
+{
+    "KPlugin": {
+        "Authors": [{ "Email": "contact@theia-ee.fr", "Name": "rcspam" }],
+        "Category": "System Information",
+        "Description": "Shows the active firewalld zone of the primary network interface",
+        "Icon": "security-high",
+        "Id": "net.rcspam.firewallzone",
+        "Name": "Firewall Zone",
+        "Version": "1.0",
+        "License": "GPL-3.0+",
+        "EnabledByDefault": true
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPackageStructure": "Plasma/Applet"
+}
