@@ -20,6 +20,18 @@ therefore behind an explicit button in the popup, which warns that it asks for a
 password. Nothing in the polling loop ever authenticates — a guard in the code
 rejects any privileged query added to it later.
 
+So the two halves of the popup behave differently, on purpose:
+
+| | refresh |
+|---|---|
+| zone, interface, default zone | every 10 s, no authentication |
+| open services and ports | when you ask, and shows when it was read |
+
+Opening a port elsewhere — in `firewall-config`, or with `firewall-cmd` — is
+therefore not picked up on its own. The popup timestamps its answer and offers a
+Refresh button. Switching zone discards the lists outright, since they no longer
+describe the zone you are in.
+
 ## Requirements
 
 - Plasma 6
