@@ -66,6 +66,52 @@ TestCase {
         compare(ZoneLogic.parseList("").length, 0)
     }
 
+    // Output of `firewall-cmd --zone=X --list-all`, as produced by
+    // print_zone_policy_info() in firewall/command.py. One query instead of two
+    // means one password prompt instead of two.
+    readonly property string listAllSample:
+        "home (active)\n" +
+        "  target: default\n" +
+        "  icmp-block-inversion: no\n" +
+        "  interfaces: wlo1\n" +
+        "  sources: \n" +
+        "  services: dhcpv6-client kdeconnect mdns samba-client syncthing\n" +
+        "  ports: 8384/tcp 22000/tcp\n" +
+        "  protocols: \n" +
+        "  forward: yes\n" +
+        "  masquerade: no\n" +
+        "  forward-ports: \n" +
+        "  source-ports: \n" +
+        "  icmp-blocks: \n" +
+        "  rich rules: \n"
+
+    function test_parseListAll_extracts_services_and_ports() {
+        var r = ZoneLogic.parseListAll(listAllSample)
+        compare(r.services.length, 5)
+        compare(r.services[0], "dhcpv6-client")
+        compare(r.ports.length, 2)
+        compare(r.ports[1], "22000/tcp")
+    }
+
+    // "source-ports:" and "forward-ports:" also end in "ports:" — matching them
+    // would silently report the wrong list.
+    function test_parseListAll_ignores_lookalike_keys() {
+        var s = "public\n  forward-ports: 80:proxy:8080\n  source-ports: 53/udp\n  ports: \n  services: ssh\n"
+        var r = ZoneLogic.parseListAll(s)
+        compare(r.ports.length, 0)
+        compare(r.services.length, 1)
+        compare(r.services[0], "ssh")
+    }
+
+    function test_parseListAll_handles_empty_and_garbage() {
+        var r = ZoneLogic.parseListAll("")
+        compare(r.services.length, 0)
+        compare(r.ports.length, 0)
+        var g = ZoneLogic.parseListAll("Error: INVALID_ZONE\n")
+        compare(g.services.length, 0)
+        compare(g.ports.length, 0)
+    }
+
     // Guards the whole point of the widget: a polling query that reaches
     // firewalld's config.info polkit action prompts for a password every tick.
     function test_isFreeQuery_rejects_prompting_commands() {

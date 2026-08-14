@@ -77,11 +77,11 @@ PlasmoidItem {
                     root.clearDetails()
             } else if (source.indexOf("get-default-zone") !== -1) {
                 root.defaultZone = stdout.trim()
-            } else if (source.indexOf("--list-services") !== -1) {
-                root.services = ZoneLogic.parseList(stdout)
+            } else if (source.indexOf("--list-all") !== -1) {
+                var details = ZoneLogic.parseListAll(stdout)
+                root.services = details.services
+                root.ports = details.ports
                 root.detailsLoading = false
-            } else if (source.indexOf("--list-ports") !== -1) {
-                root.ports = ZoneLogic.parseList(stdout)
             }
         }
     }
@@ -94,14 +94,14 @@ PlasmoidItem {
     }
 
     // Explicit user action only. firewalld asks for a password here, which is
-    // exactly why it is not part of the polling loop.
+    // exactly why it is not part of the polling loop. A single --list-all is
+    // deliberate: one query, one password prompt.
     function loadDetails() {
         if (!zoneState.ok || detailsLoading)
             return
         detailsRequested = true
         detailsLoading = true
-        executable.run("firewall-cmd --zone=" + zoneState.zone + " --list-services")
-        executable.run("firewall-cmd --zone=" + zoneState.zone + " --list-ports")
+        executable.run("firewall-cmd --zone=" + zoneState.zone + " --list-all")
     }
 
     Timer {
