@@ -23,6 +23,20 @@ PlasmoidItem {
     property string iface: ""
     property string defaultZone: ""
 
+    // Assume the firewall is up until told otherwise, so the alarming colour
+    // never flashes during the first poll.
+    property bool firewallRunning: true
+
+    readonly property string colourKey: ZoneLogic.colourKey(zoneState, firewallRunning)
+    readonly property color stateColour: {
+        switch (colourKey) {
+        case "trusted": return Plasmoid.configuration.colorTrusted
+        case "closed":  return Plasmoid.configuration.colorClosed
+        case "down":    return Plasmoid.configuration.colorDown
+        default:        return Plasmoid.configuration.colorOffline
+        }
+    }
+
     // Services and ports are NOT polled: listing them goes through firewalld's
     // config.info polkit action, which is auth_admin_keep, so every poll would
     // raise a password dialog. They are fetched only when the user asks.
@@ -77,6 +91,8 @@ PlasmoidItem {
                 root.zoneState = ZoneLogic.parseZone(stdout, stderr, code)
                 if (!root.zoneState.ok || root.zoneState.zone !== previous)
                     root.clearDetails()
+            } else if (source.indexOf("is-active firewalld") !== -1) {
+                root.firewallRunning = ZoneLogic.parseServiceState(stdout)
             } else if (source.indexOf("get-default-zone") !== -1) {
                 root.defaultZone = stdout.trim()
             } else if (source.indexOf("--list-all") !== -1) {
@@ -124,7 +140,10 @@ PlasmoidItem {
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: executable.run("ip -o route show default | awk '{print $5; exit}'")
+        onTriggered: {
+            executable.run("ip -o route show default | awk '{print $5; exit}'")
+            executable.poll("systemctl is-active firewalld")
+        }
     }
 
     Component.onCompleted: executable.poll("firewall-cmd --get-default-zone")
@@ -134,9 +153,17 @@ PlasmoidItem {
         onPressed: wasExpanded = root.expanded
         onClicked: root.expanded = !wasExpanded
 
+        // Tinted shield rather than a themed status icon: the colour has to
+        // carry the whole message, and the icon theme decides what a
+        // "security-high" glyph looks like — badges in some, nothing in others.
         Kirigami.Icon {
             anchors.fill: parent
-            source: ZoneLogic.iconFor(root.zoneState)
+            // Sized off the parent, never off this item: anchoring to a margin
+            // computed from its own width is a binding loop.
+            anchors.margins: Math.round(Math.min(parent.width, parent.height) * 0.08)
+            source: Qt.resolvedUrl("../images/shield.svg")
+            isMask: true
+            color: root.stateColour
         }
     }
 
@@ -190,14 +217,18 @@ PlasmoidItem {
                 spacing: Kirigami.Units.smallSpacing
 
                 Kirigami.Icon {
-                    source: ZoneLogic.iconFor(root.zoneState)
+                    source: Qt.resolvedUrl("../images/shield.svg")
+                    isMask: true
+                    color: root.stateColour
                     Layout.preferredWidth: Kirigami.Units.iconSizes.medium
                     Layout.preferredHeight: Kirigami.Units.iconSizes.medium
                 }
                 QQC2.Label {
-                    text: root.zoneState.ok
-                        ? i18n("Zone: %1", root.zoneState.zone)
-                        : ZoneLogic.errorText(root.zoneState.error)
+                    text: !root.firewallRunning
+                        ? i18n("firewalld is not running")
+                        : root.zoneState.ok
+                            ? i18n("Zone: %1", root.zoneState.zone)
+                            : ZoneLogic.errorText(root.zoneState.error)
                     font.bold: true
                     color: Kirigami.Theme.textColor
                     Layout.fillWidth: true

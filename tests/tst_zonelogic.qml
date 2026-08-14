@@ -123,6 +123,47 @@ TestCase {
         compare(ZoneLogic.parseListAll("drop\n  target: DROP\n  services: \n  ports: \n").ok, true)
     }
 
+    // The panel icon is tinted from one of four keys. Which one wins matters:
+    // a stopped firewall is the alarming case and must not be masked by the
+    // zone the interface happens to sit in.
+    function test_colourKey_firewall_down_wins() {
+        compare(ZoneLogic.colourKey({ ok: true, zone: "home", error: "" }, false), "down")
+        compare(ZoneLogic.colourKey({ ok: false, zone: "", error: "offline" }, false), "down")
+    }
+
+    function test_colourKey_trusted_zones() {
+        compare(ZoneLogic.colourKey({ ok: true, zone: "home", error: "" }, true), "trusted")
+        compare(ZoneLogic.colourKey({ ok: true, zone: "internal", error: "" }, true), "trusted")
+        compare(ZoneLogic.colourKey({ ok: true, zone: "work", error: "" }, true), "trusted")
+    }
+
+    // Everything that is not a zone you trust reads as "closed": public on a
+    // café network, but also block, drop and any zone this widget has never
+    // heard of. Erring towards the cautious colour is deliberate.
+    function test_colourKey_closed_zones() {
+        compare(ZoneLogic.colourKey({ ok: true, zone: "public", error: "" }, true), "closed")
+        compare(ZoneLogic.colourKey({ ok: true, zone: "external", error: "" }, true), "closed")
+        compare(ZoneLogic.colourKey({ ok: true, zone: "block", error: "" }, true), "closed")
+        compare(ZoneLogic.colourKey({ ok: true, zone: "drop", error: "" }, true), "closed")
+        compare(ZoneLogic.colourKey({ ok: true, zone: "docker", error: "" }, true), "closed")
+    }
+
+    function test_colourKey_offline() {
+        compare(ZoneLogic.colourKey({ ok: false, zone: "", error: "offline" }, true), "offline")
+        compare(ZoneLogic.colourKey({ ok: false, zone: "", error: "no-zone" }, true), "offline")
+        compare(ZoneLogic.colourKey({ ok: false, zone: "", error: "busy" }, true), "offline")
+    }
+
+    function test_parseServiceState() {
+        compare(ZoneLogic.parseServiceState("active\n"), true)
+        compare(ZoneLogic.parseServiceState("inactive\n"), false)
+        compare(ZoneLogic.parseServiceState("failed\n"), false)
+        compare(ZoneLogic.parseServiceState(""), false)
+        // "activating" is not yet serving requests, but it is on its way up and
+        // must not flash the alarming colour on every boot.
+        compare(ZoneLogic.parseServiceState("activating\n"), true)
+    }
+
     // Guards the whole point of the widget: a polling query that reaches
     // firewalld's config.info polkit action prompts for a password every tick.
     function test_isFreeQuery_rejects_prompting_commands() {
@@ -133,6 +174,8 @@ TestCase {
         verify(!ZoneLogic.isFreeQuery("firewall-cmd --zone=home --list-ports"))
         verify(!ZoneLogic.isFreeQuery("firewall-cmd --state"))
         verify(!ZoneLogic.isFreeQuery("firewall-cmd --permanent --list-all"))
+        verify(ZoneLogic.isFreeQuery("systemctl is-active firewalld"))
+        verify(!ZoneLogic.isFreeQuery("systemctl restart firewalld"))
     }
 
     function test_errorText_is_never_empty() {

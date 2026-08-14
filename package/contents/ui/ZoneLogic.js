@@ -23,6 +23,29 @@ function trustLevel(zone) {
     }
 }
 
+// Which of the four configurable colours the panel icon takes.
+//
+// Order matters. A stopped firewalld is the one state worth interrupting for,
+// so it outranks everything, including a perfectly good zone still reported by
+// the last successful poll. Anything that is not a zone you trust reads as
+// "closed", unknown zones included: guessing in favour of the cautious colour
+// is the safer error.
+function colourKey(state, firewallRunning) {
+    if (!firewallRunning)
+        return "down"
+    if (!state || !state.ok)
+        return "offline"
+    return trustLevel(state.zone) === "trusted" ? "trusted" : "closed"
+}
+
+// Parses `systemctl is-active firewalld`, which needs no privilege — unlike
+// `firewall-cmd --state`, which goes through a polkit action and would ask for
+// a password on every poll.
+function parseServiceState(stdout) {
+    var s = (stdout || "").trim()
+    return s === "active" || s === "activating"
+}
+
 function iconFor(state) {
     if (!state || !state.ok)
         return "network-disconnect"
@@ -126,10 +149,13 @@ function parseListAll(stdout) {
 // A widget that polls must therefore never run a query outside this list, or
 // it asks for a password every tick. Reading the zone XML instead is not an
 // option: /etc/firewalld is 750 root:root.
+// `systemctl is-active` is a read of unit state and needs no privilege either,
+// unlike `firewall-cmd --state`, which reaches FirewallD1.config.
 var FREE_QUERIES = [
     "--get-zone-of-interface",
     "--get-active-zones",
-    "--get-default-zone"
+    "--get-default-zone",
+    "systemctl is-active"
 ]
 
 function isFreeQuery(cmd) {
