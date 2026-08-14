@@ -32,6 +32,28 @@ therefore not picked up on its own. The popup timestamps its answer and offers a
 Refresh button. Switching zone discards the lists outright, since they no longer
 describe the zone you are in.
 
+## The panel icon
+
+A shield tinted from the widget's own monochrome SVG, not from the icon theme —
+themes disagree wildly on what a "security-high" glyph looks like, and some
+reduce it to a badge you cannot read at panel size.
+
+| colour | meaning |
+|---|---|
+| green | firewalld running, interface in a trusted zone (`home`, `internal`, `work`, `trusted`) |
+| orange | firewalld running, interface anywhere else — `public`, `block`, `drop`, or a zone the widget does not know |
+| red | firewalld is not running |
+| grey | no network connection |
+
+A stopped firewall outranks the zone: it is the one state worth interrupting
+for. Unknown zones take the cautious colour rather than the reassuring one.
+
+The four colours are settings — right-click the widget, Configure, Colours.
+
+Whether firewalld is up is read with `systemctl is-active firewalld`, which is
+free. `firewall-cmd --state` would have been the obvious choice but reaches
+`FirewallD1.config`, so it asks for a password.
+
 ## Requirements
 
 - Plasma 6
