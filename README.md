@@ -28,15 +28,27 @@ rejects any privileged query added to it later.
 
 ## Install
 
+    git clone https://github.com/rcspam/plasma-firewall-zone.git
+    cd plasma-firewall-zone
     kpackagetool6 --type Plasma/Applet --install package/
 
-Then add "Firewall Zone" from the widget explorer.
+Then right-click your panel, choose "Add or Manage Widgets", search for
+"Firewall Zone" and drag it onto the panel.
+
+If it does not show up in the list, refresh KDE's service cache with
+`kbuildsycoca6` and look again.
 
 ## Upgrade
 
+From the clone:
+
+    git pull
     rm -rf ~/.cache/plasmashell/qmlcache
     kpackagetool6 --type Plasma/Applet --upgrade package/
     kquitapp6 plasmashell && kstart plasmashell
+
+Clearing the QML cache and restarting plasmashell is not optional: without it
+the previously compiled QML stays in use and the update appears to do nothing.
 
 ## Remove
 
