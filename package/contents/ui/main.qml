@@ -250,67 +250,22 @@ PlasmoidItem {
                 Layout.fillWidth: true
             }
 
-            // One entry per line rather than a comma separated run: a zone can
-            // hold a dozen services and the single line was unreadable.
-            ColumnLayout {
+            // Folded by default: the header carries the count, which is what
+            // the popup is read for. Unfold to see the entries, one per line.
+            CollapsibleSection {
+                id: servicesSection
                 visible: root.detailsRequested && !root.detailsLoading
                 Layout.fillWidth: true
-                spacing: 0
-
-                QQC2.Label {
-                    text: i18n("Open services")
-                    font.bold: true
-                    color: Kirigami.Theme.textColor
-                    Layout.fillWidth: true
-                }
-                QQC2.Label {
-                    visible: root.services.length === 0
-                    text: i18n("none")
-                    color: Kirigami.Theme.disabledTextColor
-                    Layout.leftMargin: Kirigami.Units.gridUnit
-                    Layout.fillWidth: true
-                }
-                Repeater {
-                    model: root.services
-                    QQC2.Label {
-                        text: modelData
-                        color: Kirigami.Theme.textColor
-                        elide: Text.ElideRight
-                        Layout.leftMargin: Kirigami.Units.gridUnit
-                        Layout.fillWidth: true
-                    }
-                }
+                title: i18n("Open services")
+                items: root.services
             }
 
-            ColumnLayout {
+            CollapsibleSection {
+                id: portsSection
                 visible: root.detailsRequested && !root.detailsLoading
                 Layout.fillWidth: true
-                Layout.topMargin: Kirigami.Units.smallSpacing
-                spacing: 0
-
-                QQC2.Label {
-                    text: i18n("Open ports")
-                    font.bold: true
-                    color: Kirigami.Theme.textColor
-                    Layout.fillWidth: true
-                }
-                QQC2.Label {
-                    visible: root.ports.length === 0
-                    text: i18n("none")
-                    color: Kirigami.Theme.disabledTextColor
-                    Layout.leftMargin: Kirigami.Units.gridUnit
-                    Layout.fillWidth: true
-                }
-                Repeater {
-                    model: root.ports
-                    QQC2.Label {
-                        text: modelData
-                        color: Kirigami.Theme.textColor
-                        elide: Text.ElideRight
-                        Layout.leftMargin: Kirigami.Units.gridUnit
-                        Layout.fillWidth: true
-                    }
-                }
+                title: i18n("Open ports")
+                items: root.ports
             }
 
             RowLayout {
