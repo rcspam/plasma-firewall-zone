@@ -77,6 +77,35 @@ function parseList(stdout) {
     return s.length === 0 ? [] : s.split(/\s+/)
 }
 
+// Parses `firewall-cmd --zone=X --list-all`, whose layout comes from
+// print_zone_policy_info() in firewall/command.py: a zone header, then one
+// "  key: space separated values" line per attribute.
+//
+// One --list-all replaces --list-services plus --list-ports, and that matters:
+// both go through an auth_admin_keep polkit action, and two commands fired at
+// once produce two password dialogs, the second starting before the first
+// authorisation is recorded.
+function parseListAll(stdout) {
+    var result = { services: [], ports: [] }
+    var lines = (stdout || "").split("\n")
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim()
+        var colon = line.indexOf(":")
+        if (colon === -1)
+            continue
+        // Exact key match: "source-ports" and "forward-ports" also end in
+        // "ports" and would otherwise overwrite the real port list.
+        var key = line.substring(0, colon)
+        var value = line.substring(colon + 1).trim()
+        if (key === "services")
+            result.services = parseList(value)
+        else if (key === "ports")
+            result.ports = parseList(value)
+    }
+    return result
+}
+
 // Which firewall-cmd queries are free of a polkit prompt.
 //
 // firewalld ships two families of polkit actions (see
