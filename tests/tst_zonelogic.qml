@@ -12,7 +12,15 @@ TestCase {
         compare(r.error, "")
     }
 
-    function test_parseZone_interface_without_zone() {
+    // firewall-cmd prints "no zone" on stderr, not stdout. Both spellings are
+    // accepted so a future firewalld release moving it back cannot break us.
+    function test_parseZone_interface_without_zone_on_stderr() {
+        var r = ZoneLogic.parseZone("", "no zone\n", 2)
+        compare(r.ok, false)
+        compare(r.error, "no-zone")
+    }
+
+    function test_parseZone_interface_without_zone_on_stdout() {
         var r = ZoneLogic.parseZone("no zone\n", "", 2)
         compare(r.ok, false)
         compare(r.error, "no-zone")
