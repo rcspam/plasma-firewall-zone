@@ -158,9 +158,11 @@ PlasmoidItem {
         // "security-high" glyph looks like — badges in some, nothing in others.
         Kirigami.Icon {
             anchors.fill: parent
-            // Sized off the parent, never off this item: anchoring to a margin
-            // computed from its own width is a binding loop.
-            anchors.margins: Math.round(Math.min(parent.width, parent.height) * 0.08)
+            // A shield is taller than it is wide, so at equal box size it reads
+            // smaller than the round icons next to it. A slight negative margin
+            // brings it back level with them. Sized off the parent, never off
+            // this item: a margin computed from its own width is a binding loop.
+            anchors.margins: -Math.round(Math.min(parent.width, parent.height) * 0.06)
             source: Qt.resolvedUrl("../images/shield.svg")
             isMask: true
             color: root.stateColour
