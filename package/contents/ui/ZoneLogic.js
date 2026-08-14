@@ -76,3 +76,31 @@ function parseList(stdout) {
     var s = (stdout || "").trim()
     return s.length === 0 ? [] : s.split(/\s+/)
 }
+
+// Which firewall-cmd queries are free of a polkit prompt.
+//
+// firewalld ships two families of polkit actions (see
+// /usr/share/polkit-1/actions/org.fedoraproject.FirewallD1.policy):
+//   org.fedoraproject.FirewallD1.info         allow_active=yes
+//   org.fedoraproject.FirewallD1.config.info  allow_active=auth_admin_keep
+//
+// Anything reaching the second family pops up a password dialog. Measured on
+// firewalld 2.x: --get-active-zones, --get-default-zone and
+// --get-zone-of-interface stay in the first family; --list-services,
+// --list-ports and --state reach the second one.
+//
+// A widget that polls must therefore never run a query outside this list, or
+// it asks for a password every tick. Reading the zone XML instead is not an
+// option: /etc/firewalld is 750 root:root.
+var FREE_QUERIES = [
+    "--get-zone-of-interface",
+    "--get-active-zones",
+    "--get-default-zone"
+]
+
+function isFreeQuery(cmd) {
+    for (var i = 0; i < FREE_QUERIES.length; i++)
+        if ((cmd || "").indexOf(FREE_QUERIES[i]) !== -1)
+            return true
+    return false
+}

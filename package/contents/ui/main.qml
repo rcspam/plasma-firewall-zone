@@ -21,8 +21,15 @@ PlasmoidItem {
 
     property var zoneState: ({ ok: false, zone: "", error: "unknown" })
     property string iface: ""
+    property string defaultZone: ""
+
+    // Services and ports are NOT polled: listing them goes through firewalld's
+    // config.info polkit action, which is auth_admin_keep, so every poll would
+    // raise a password dialog. They are fetched only when the user asks.
     property var services: []
     property var ports: []
+    property bool detailsRequested: false
+    property bool detailsLoading: false
 
     // The executable engine caches sources by their exact string, so re-running
     // the same command silently does nothing. A unique prefix forces a fresh run.
@@ -37,6 +44,18 @@ PlasmoidItem {
             connectSource("env _=" + (root.tick++) + " " + cmd)
         }
 
+        // Every periodic query goes through here, which refuses anything that
+        // would raise a polkit dialog. Kept as a hard guard rather than a
+        // convention: one careless firewall-cmd added to the polling loop is
+        // enough to make the widget ask for a password every ten seconds.
+        function poll(cmd) {
+            if (!ZoneLogic.isFreeQuery(cmd)) {
+                console.warn("firewallzone: refusing to poll a privileged query:", cmd)
+                return
+            }
+            run(cmd)
+        }
+
         onNewData: function(source, data) {
             var stdout = data["stdout"] || ""
             var stderr = data["stderr"] || ""
@@ -47,26 +66,42 @@ PlasmoidItem {
                 root.iface = stdout.trim()
                 if (root.iface.length === 0) {
                     root.zoneState = { ok: false, zone: "", error: "offline" }
-                    root.services = []
-                    root.ports = []
+                    root.clearDetails()
                 } else {
-                    run("firewall-cmd --get-zone-of-interface=" + root.iface)
+                    poll("firewall-cmd --get-zone-of-interface=" + root.iface)
                 }
             } else if (source.indexOf("get-zone-of-interface") !== -1) {
+                var previous = root.zoneState.zone
                 root.zoneState = ZoneLogic.parseZone(stdout, stderr, code)
-                if (root.zoneState.ok) {
-                    run("firewall-cmd --zone=" + root.zoneState.zone + " --list-services")
-                    run("firewall-cmd --zone=" + root.zoneState.zone + " --list-ports")
-                } else {
-                    root.services = []
-                    root.ports = []
-                }
+                if (!root.zoneState.ok || root.zoneState.zone !== previous)
+                    root.clearDetails()
+            } else if (source.indexOf("get-default-zone") !== -1) {
+                root.defaultZone = stdout.trim()
             } else if (source.indexOf("--list-services") !== -1) {
                 root.services = ZoneLogic.parseList(stdout)
+                root.detailsLoading = false
             } else if (source.indexOf("--list-ports") !== -1) {
                 root.ports = ZoneLogic.parseList(stdout)
             }
         }
+    }
+
+    function clearDetails() {
+        services = []
+        ports = []
+        detailsRequested = false
+        detailsLoading = false
+    }
+
+    // Explicit user action only. firewalld asks for a password here, which is
+    // exactly why it is not part of the polling loop.
+    function loadDetails() {
+        if (!zoneState.ok || detailsLoading)
+            return
+        detailsRequested = true
+        detailsLoading = true
+        executable.run("firewall-cmd --zone=" + zoneState.zone + " --list-services")
+        executable.run("firewall-cmd --zone=" + zoneState.zone + " --list-ports")
     }
 
     Timer {
@@ -76,6 +111,8 @@ PlasmoidItem {
         triggeredOnStart: true
         onTriggered: executable.run("ip -o route show default | awk '{print $5; exit}'")
     }
+
+    Component.onCompleted: executable.poll("firewall-cmd --get-default-zone")
 
     compactRepresentation: MouseArea {
         property bool wasExpanded: false
@@ -148,10 +185,38 @@ PlasmoidItem {
                 Layout.fillWidth: true
             }
 
+            QQC2.Label {
+                visible: root.defaultZone !== ""
+                text: i18n("Default zone: %1", root.defaultZone)
+                color: Kirigami.Theme.disabledTextColor
+                Layout.fillWidth: true
+            }
+
             Kirigami.Separator { Layout.fillWidth: true }
 
+            // Asking firewalld for services and ports triggers a polkit prompt,
+            // so it stays behind an explicit click and says so.
+            QQC2.Button {
+                visible: root.zoneState.ok && !root.detailsRequested
+                text: i18n("Show open services…")
+                icon.name: "view-list-details"
+                focusPolicy: Qt.NoFocus
+                Layout.fillWidth: true
+                onClicked: root.loadDetails()
+                PlasmaComponents.ToolTip {
+                    text: i18n("firewalld requires authentication to list services, so this asks for your password")
+                }
+            }
+
             QQC2.Label {
-                visible: root.zoneState.ok
+                visible: root.detailsLoading
+                text: i18n("Waiting for authentication…")
+                color: Kirigami.Theme.disabledTextColor
+                Layout.fillWidth: true
+            }
+
+            QQC2.Label {
+                visible: root.detailsRequested && !root.detailsLoading
                 text: root.services.length > 0
                     ? i18n("Open services: %1", root.services.join(", "))
                     : i18n("Open services: none")
@@ -161,7 +226,7 @@ PlasmoidItem {
             }
 
             QQC2.Label {
-                visible: root.zoneState.ok
+                visible: root.detailsRequested && !root.detailsLoading
                 text: root.ports.length > 0
                     ? i18n("Open ports: %1", root.ports.join(", "))
                     : i18n("Open ports: none")

@@ -66,6 +66,18 @@ TestCase {
         compare(ZoneLogic.parseList("").length, 0)
     }
 
+    // Guards the whole point of the widget: a polling query that reaches
+    // firewalld's config.info polkit action prompts for a password every tick.
+    function test_isFreeQuery_rejects_prompting_commands() {
+        verify(ZoneLogic.isFreeQuery("firewall-cmd --get-zone-of-interface=wlo1"))
+        verify(ZoneLogic.isFreeQuery("firewall-cmd --get-active-zones"))
+        verify(ZoneLogic.isFreeQuery("firewall-cmd --get-default-zone"))
+        verify(!ZoneLogic.isFreeQuery("firewall-cmd --zone=home --list-services"))
+        verify(!ZoneLogic.isFreeQuery("firewall-cmd --zone=home --list-ports"))
+        verify(!ZoneLogic.isFreeQuery("firewall-cmd --state"))
+        verify(!ZoneLogic.isFreeQuery("firewall-cmd --permanent --list-all"))
+    }
+
     function test_errorText_is_never_empty() {
         var codes = ["no-zone", "offline", "busy", "stopped", "unknown", "nimportequoi"]
         for (var i = 0; i < codes.length; i++)
