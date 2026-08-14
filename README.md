@@ -28,3 +28,15 @@ Then add "Firewall Zone" from the widget explorer.
 ## Remove
 
     kpackagetool6 --type Plasma/Applet --remove net.rcspam.firewallzone
+
+## Tests
+
+The decision logic lives in `package/contents/ui/ZoneLogic.js`, free of any QML
+dependency, and is covered by `tests/tst_zonelogic.qml`:
+
+    qmltestrunner -input tests/
+
+On distributions where `qmltestrunner` in `PATH` is the qtchooser wrapper still
+pointing at Qt 5, call the Qt 6 binary directly:
+
+    /usr/lib/qt6/bin/qmltestrunner -input tests/
