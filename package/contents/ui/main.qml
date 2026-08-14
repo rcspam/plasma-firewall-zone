@@ -250,30 +250,67 @@ PlasmoidItem {
                 Layout.fillWidth: true
             }
 
-            QQC2.Label {
+            // One entry per line rather than a comma separated run: a zone can
+            // hold a dozen services and the single line was unreadable.
+            ColumnLayout {
                 visible: root.detailsRequested && !root.detailsLoading
-                text: root.services.length > 0
-                    ? i18n("Open services: %1", root.services.join(", "))
-                    : i18n("Open services: none")
-                wrapMode: Text.WordWrap
-                color: Kirigami.Theme.textColor
                 Layout.fillWidth: true
-                // Without this the layout sizes the label as a single line and
-                // the popup ends up shorter than its own content.
-                Layout.preferredHeight: contentHeight
+                spacing: 0
+
+                QQC2.Label {
+                    text: i18n("Open services")
+                    font.bold: true
+                    color: Kirigami.Theme.textColor
+                    Layout.fillWidth: true
+                }
+                QQC2.Label {
+                    visible: root.services.length === 0
+                    text: i18n("none")
+                    color: Kirigami.Theme.disabledTextColor
+                    Layout.leftMargin: Kirigami.Units.gridUnit
+                    Layout.fillWidth: true
+                }
+                Repeater {
+                    model: root.services
+                    QQC2.Label {
+                        text: modelData
+                        color: Kirigami.Theme.textColor
+                        elide: Text.ElideRight
+                        Layout.leftMargin: Kirigami.Units.gridUnit
+                        Layout.fillWidth: true
+                    }
+                }
             }
 
-            QQC2.Label {
+            ColumnLayout {
                 visible: root.detailsRequested && !root.detailsLoading
-                text: root.ports.length > 0
-                    ? i18n("Open ports: %1", root.ports.join(", "))
-                    : i18n("Open ports: none")
-                wrapMode: Text.WordWrap
-                color: Kirigami.Theme.textColor
                 Layout.fillWidth: true
-                // Without this the layout sizes the label as a single line and
-                // the popup ends up shorter than its own content.
-                Layout.preferredHeight: contentHeight
+                Layout.topMargin: Kirigami.Units.smallSpacing
+                spacing: 0
+
+                QQC2.Label {
+                    text: i18n("Open ports")
+                    font.bold: true
+                    color: Kirigami.Theme.textColor
+                    Layout.fillWidth: true
+                }
+                QQC2.Label {
+                    visible: root.ports.length === 0
+                    text: i18n("none")
+                    color: Kirigami.Theme.disabledTextColor
+                    Layout.leftMargin: Kirigami.Units.gridUnit
+                    Layout.fillWidth: true
+                }
+                Repeater {
+                    model: root.ports
+                    QQC2.Label {
+                        text: modelData
+                        color: Kirigami.Theme.textColor
+                        elide: Text.ElideRight
+                        Layout.leftMargin: Kirigami.Units.gridUnit
+                        Layout.fillWidth: true
+                    }
+                }
             }
 
             RowLayout {
