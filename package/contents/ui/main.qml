@@ -149,6 +149,14 @@ PlasmoidItem {
         Layout.preferredWidth: implicitWidth
         Layout.preferredHeight: implicitHeight
 
+        // Plasma remembers a popup size per applet (popupHeight in
+        // plasma-org.kde.plasma.desktop-appletsrc) and reuses it even after the
+        // content has grown — the last button then falls outside the dialog and
+        // is simply not there any more. A minimum tied to the content forbids
+        // that: revealing the service list makes the popup grow instead.
+        Layout.minimumWidth: Kirigami.Units.gridUnit * 14
+        Layout.minimumHeight: content.implicitHeight
+
         // Repeated here, not only on the root item: the popup is built in its
         // own window, so the attached property set on PlasmoidItem does not
         // reach it. Background and text then come from the same colour set,
@@ -170,7 +178,11 @@ PlasmoidItem {
 
         ColumnLayout {
             id: content
-            anchors.fill: parent
+            // Width is imposed, height is left to the layout. Anchoring both
+            // while fullRep.implicitHeight reads back content.implicitHeight
+            // makes the two disagree: children get laid out past the bottom of
+            // a popup that believes it is shorter, and the last one disappears.
+            width: fullRep.width
             spacing: Kirigami.Units.smallSpacing
 
             RowLayout {
@@ -228,6 +240,7 @@ PlasmoidItem {
                 color: Kirigami.Theme.neutralTextColor
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
+                Layout.preferredHeight: contentHeight
             }
 
             QQC2.Label {
@@ -245,6 +258,9 @@ PlasmoidItem {
                 wrapMode: Text.WordWrap
                 color: Kirigami.Theme.textColor
                 Layout.fillWidth: true
+                // Without this the layout sizes the label as a single line and
+                // the popup ends up shorter than its own content.
+                Layout.preferredHeight: contentHeight
             }
 
             QQC2.Label {
@@ -255,6 +271,9 @@ PlasmoidItem {
                 wrapMode: Text.WordWrap
                 color: Kirigami.Theme.textColor
                 Layout.fillWidth: true
+                // Without this the layout sizes the label as a single line and
+                // the popup ends up shorter than its own content.
+                Layout.preferredHeight: contentHeight
             }
 
             RowLayout {
@@ -278,8 +297,6 @@ PlasmoidItem {
                     }
                 }
             }
-
-            Item { Layout.fillHeight: true }
 
             ThemedButton {
                 text: i18n("Open firewall settings")
