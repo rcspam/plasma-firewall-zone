@@ -112,6 +112,17 @@ TestCase {
         compare(g.ports.length, 0)
     }
 
+    // A declined password gives an empty answer. Reporting that as "no service
+    // is open" would be a lie about the firewall, so the parser has to say
+    // whether it actually read anything.
+    function test_parseListAll_reports_whether_it_read_anything() {
+        compare(ZoneLogic.parseListAll(listAllSample).ok, true)
+        compare(ZoneLogic.parseListAll("").ok, false)
+        compare(ZoneLogic.parseListAll("Error: NOT_AUTHORIZED\n").ok, false)
+        // A zone with nothing open still answers, with empty values.
+        compare(ZoneLogic.parseListAll("drop\n  target: DROP\n  services: \n  ports: \n").ok, true)
+    }
+
     // Guards the whole point of the widget: a polling query that reaches
     // firewalld's config.info polkit action prompts for a password every tick.
     function test_isFreeQuery_rejects_prompting_commands() {
