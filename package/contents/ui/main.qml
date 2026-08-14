@@ -31,6 +31,7 @@ PlasmoidItem {
     property bool detailsRequested: false
     property bool detailsLoading: false
     property bool detailsFailed: false
+    property string detailsAt: ""
 
     // The executable engine caches sources by their exact string, so re-running
     // the same command silently does nothing. A unique prefix forces a fresh run.
@@ -84,6 +85,9 @@ PlasmoidItem {
                 if (details.ok) {
                     root.services = details.services
                     root.ports = details.ports
+                    // A snapshot, not a live view: firewalld is only asked when
+                    // the user asks, so say when the answer was taken.
+                    root.detailsAt = Qt.formatTime(new Date(), "HH:mm")
                 } else {
                     // Declined or failed authentication. Offer the button again
                     // rather than claim the zone has nothing open.
@@ -100,6 +104,7 @@ PlasmoidItem {
         detailsRequested = false
         detailsLoading = false
         detailsFailed = false
+        detailsAt = ""
     }
 
     // Explicit user action only. firewalld asks for a password here, which is
@@ -250,6 +255,28 @@ PlasmoidItem {
                 wrapMode: Text.WordWrap
                 color: Kirigami.Theme.textColor
                 Layout.fillWidth: true
+            }
+
+            RowLayout {
+                visible: root.detailsRequested && !root.detailsLoading
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+
+                QQC2.Label {
+                    text: i18n("Read at %1", root.detailsAt)
+                    color: Kirigami.Theme.disabledTextColor
+                    font: Kirigami.Theme.smallFont
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+                ThemedButton {
+                    text: i18n("Refresh")
+                    icon.name: "view-refresh"
+                    onClicked: root.loadDetails()
+                    PlasmaComponents.ToolTip {
+                        text: i18n("Ask firewalld again. Adding a service or a port elsewhere is not seen until you do.")
+                    }
+                }
             }
 
             Item { Layout.fillHeight: true }
