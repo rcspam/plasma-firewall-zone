@@ -196,11 +196,10 @@ PlasmoidItem {
 
             // Asking firewalld for services and ports triggers a polkit prompt,
             // so it stays behind an explicit click and says so.
-            QQC2.Button {
+            ThemedButton {
                 visible: root.zoneState.ok && !root.detailsRequested
                 text: i18n("Show open services…")
                 icon.name: "view-list-details"
-                focusPolicy: Qt.NoFocus
                 Layout.fillWidth: true
                 onClicked: root.loadDetails()
                 PlasmaComponents.ToolTip {
@@ -237,14 +236,10 @@ PlasmoidItem {
 
             Item { Layout.fillHeight: true }
 
-            QQC2.Button {
+            ThemedButton {
                 text: i18n("Open firewall settings")
                 icon.name: "configure"
                 Layout.fillWidth: true
-                // Never take keyboard focus: a stray space or return reaching
-                // the freshly opened popup would otherwise launch a privileged
-                // configuration tool behind the user's back.
-                focusPolicy: Qt.NoFocus
                 onClicked: {
                     // Detach: the executable engine only reports back when the
                     // process exits, so a foreground GUI would keep the source
