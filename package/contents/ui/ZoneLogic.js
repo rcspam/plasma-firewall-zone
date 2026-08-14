@@ -35,17 +35,20 @@ function iconFor(state) {
 }
 
 // Parses `firewall-cmd --get-zone-of-interface=<iface>`.
-// Observed on firewalld 2.x / TUXEDO OS 24.04:
-//   "home"                        exit 0    nominal
-//   "no zone"                     exit 2    interface bound to no zone
-//   "Error: INVALID_INTERFACE"    exit 104  empty or unknown interface (offline)
-//   "Error: Did not receive..."   exit != 0 transient D-Bus timeout under load
-//   "FirewallD is not running"    exit 252  daemon stopped
+// Observed on firewalld 2.x / TUXEDO OS 24.04 (stream matters, stdout | stderr):
+//   "home"       | ""                          exit 0    nominal
+//   ""           | "no zone"                   exit 2    interface bound to no zone
+//   ""           | "Error: INVALID_INTERFACE"  exit 104  empty interface name
+//   ""           | "Error: Did not receive..." exit 254  transient D-Bus timeout
+//   ""           | "FirewallD is not running"  exit 252  daemon stopped
+// Only the nominal answer goes to stdout; every diagnostic goes to stderr, so
+// both streams are searched. A zone name can never contain a space, hence
+// matching "no zone" anywhere is unambiguous.
 function parseZone(stdout, stderr, exitCode) {
     var out = (stdout || "").trim()
     var both = out + " " + (stderr || "").trim()
 
-    if (out === "no zone")
+    if (both.indexOf("no zone") !== -1)
         return { ok: false, zone: "", error: "no-zone" }
     if (both.indexOf("INVALID_INTERFACE") !== -1)
         return { ok: false, zone: "", error: "offline" }
