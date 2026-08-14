@@ -85,8 +85,11 @@ function parseList(stdout) {
 // both go through an auth_admin_keep polkit action, and two commands fired at
 // once produce two password dialogs, the second starting before the first
 // authorisation is recorded.
+// `ok` tells whether the answer was actually read: a declined password yields
+// an empty output, and showing that as "no service is open" would misdescribe
+// the firewall.
 function parseListAll(stdout) {
-    var result = { services: [], ports: [] }
+    var result = { ok: false, services: [], ports: [] }
     var lines = (stdout || "").split("\n")
 
     for (var i = 0; i < lines.length; i++) {
@@ -98,10 +101,12 @@ function parseListAll(stdout) {
         // "ports" and would otherwise overwrite the real port list.
         var key = line.substring(0, colon)
         var value = line.substring(colon + 1).trim()
-        if (key === "services")
+        if (key === "services") {
             result.services = parseList(value)
-        else if (key === "ports")
+            result.ok = true
+        } else if (key === "ports") {
             result.ports = parseList(value)
+        }
     }
     return result
 }

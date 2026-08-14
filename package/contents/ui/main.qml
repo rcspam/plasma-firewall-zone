@@ -30,6 +30,7 @@ PlasmoidItem {
     property var ports: []
     property bool detailsRequested: false
     property bool detailsLoading: false
+    property bool detailsFailed: false
 
     // The executable engine caches sources by their exact string, so re-running
     // the same command silently does nothing. A unique prefix forces a fresh run.
@@ -79,9 +80,16 @@ PlasmoidItem {
                 root.defaultZone = stdout.trim()
             } else if (source.indexOf("--list-all") !== -1) {
                 var details = ZoneLogic.parseListAll(stdout)
-                root.services = details.services
-                root.ports = details.ports
                 root.detailsLoading = false
+                if (details.ok) {
+                    root.services = details.services
+                    root.ports = details.ports
+                } else {
+                    // Declined or failed authentication. Offer the button again
+                    // rather than claim the zone has nothing open.
+                    root.detailsRequested = false
+                    root.detailsFailed = true
+                }
             }
         }
     }
@@ -91,6 +99,7 @@ PlasmoidItem {
         ports = []
         detailsRequested = false
         detailsLoading = false
+        detailsFailed = false
     }
 
     // Explicit user action only. firewalld asks for a password here, which is
@@ -101,6 +110,7 @@ PlasmoidItem {
             return
         detailsRequested = true
         detailsLoading = true
+        detailsFailed = false
         executable.run("firewall-cmd --zone=" + zoneState.zone + " --list-all")
     }
 
@@ -205,6 +215,14 @@ PlasmoidItem {
                 PlasmaComponents.ToolTip {
                     text: i18n("firewalld requires authentication to list services, so this asks for your password")
                 }
+            }
+
+            QQC2.Label {
+                visible: root.detailsFailed
+                text: i18n("Not authenticated — services stay hidden")
+                color: Kirigami.Theme.neutralTextColor
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
             }
 
             QQC2.Label {
