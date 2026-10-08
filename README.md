@@ -91,7 +91,10 @@ the previously compiled QML stays in use and the update appears to do nothing.
 ## Tests
 
 The decision logic lives in `package/contents/ui/ZoneLogic.js`, free of any QML
-dependency, and is covered by `tests/tst_zonelogic.qml`:
+dependency, and is covered by `tests/tst_zonelogic.qml`.
+`tests/tst_commandrunner.qml` covers how commands are handed to Plasma's
+executable engine. It runs a few harmless shell commands for real, so it needs
+Plasma 6 installed.
 
     qmltestrunner -input tests/
 

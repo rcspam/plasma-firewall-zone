@@ -5,7 +5,6 @@ import QtQuick.Layouts
 import QtQuick.Controls as QQC2
 import org.kde.plasma.plasmoid
 import org.kde.plasma.components as PlasmaComponents
-import org.kde.plasma.plasma5support as Plasma5Support
 import org.kde.kirigami as Kirigami
 import "ZoneLogic.js" as ZoneLogic
 
@@ -47,55 +46,28 @@ PlasmoidItem {
     property bool detailsFailed: false
     property string detailsAt: ""
 
-    // The executable engine caches sources by their exact string, so re-running
-    // the same command silently does nothing. A unique prefix forces a fresh run.
-    property int tick: 0
-
-    Plasma5Support.DataSource {
+    CommandRunner {
         id: executable
-        engine: "executable"
-        connectedSources: []
 
-        function run(cmd) {
-            connectSource("env _=" + (root.tick++) + " " + cmd)
-        }
-
-        // Every periodic query goes through here, which refuses anything that
-        // would raise a polkit dialog. Kept as a hard guard rather than a
-        // convention: one careless firewall-cmd added to the polling loop is
-        // enough to make the widget ask for a password every ten seconds.
-        function poll(cmd) {
-            if (!ZoneLogic.isFreeQuery(cmd)) {
-                console.warn("firewallzone: refusing to poll a privileged query:", cmd)
-                return
-            }
-            run(cmd)
-        }
-
-        onNewData: function(source, data) {
-            var stdout = data["stdout"] || ""
-            var stderr = data["stderr"] || ""
-            var code = data["exit code"]
-            disconnectSource(source)
-
-            if (source.indexOf("route show default") !== -1) {
+        onFinished: function(command, stdout, stderr, code) {
+            if (command.indexOf("route show default") !== -1) {
                 root.iface = stdout.trim()
                 if (root.iface.length === 0) {
                     root.zoneState = { ok: false, zone: "", error: "offline" }
                     root.clearDetails()
                 } else {
-                    poll("firewall-cmd --get-zone-of-interface=" + root.iface)
+                    executable.poll("firewall-cmd --get-zone-of-interface=" + root.iface)
                 }
-            } else if (source.indexOf("get-zone-of-interface") !== -1) {
+            } else if (command.indexOf("get-zone-of-interface") !== -1) {
                 var previous = root.zoneState.zone
                 root.zoneState = ZoneLogic.parseZone(stdout, stderr, code)
                 if (!root.zoneState.ok || root.zoneState.zone !== previous)
                     root.clearDetails()
-            } else if (source.indexOf("is-active firewalld") !== -1) {
+            } else if (command.indexOf("is-active firewalld") !== -1) {
                 root.firewallRunning = ZoneLogic.parseServiceState(stdout)
-            } else if (source.indexOf("get-default-zone") !== -1) {
+            } else if (command.indexOf("get-default-zone") !== -1) {
                 root.defaultZone = stdout.trim()
-            } else if (source.indexOf("--list-all") !== -1) {
+            } else if (command.indexOf("--list-all") !== -1) {
                 var details = ZoneLogic.parseListAll(stdout)
                 root.detailsLoading = false
                 if (details.ok) {
