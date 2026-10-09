@@ -51,12 +51,13 @@ Item {
             setZoneState({ ok: false, zone: "", error: "offline" })
             return
         }
-        // A newer query, or firewalld leaving, makes this answer stale.
+        // A newer query, or firewalld leaving, makes this answer stale. The
+        // watcher is null once destroyed, with answers still due.
         call(_zoneInterface, "getZoneOfInterface", "(s)", [iface], function(reply) {
-            if (serial === watcher._zoneSerial)
+            if (watcher && serial === watcher._zoneSerial)
                 watcher.setZoneState(ZoneLogic.zoneFromReply(ZoneLogic.dbusString(reply.value)))
         }, function(reply) {
-            if (serial === watcher._zoneSerial)
+            if (watcher && serial === watcher._zoneSerial)
                 watcher.setZoneState(ZoneLogic.zoneFromError(reply.error.name, reply.error.message))
         })
     }
@@ -67,8 +68,12 @@ Item {
             return
         }
         call(_name, "getDefaultZone", "", [], function(reply) {
+            if (!watcher)
+                return
             watcher.defaultZone = ZoneLogic.dbusString(reply.value)
         }, function() {
+            if (!watcher)
+                return
             watcher.defaultZone = ""
         })
     }
@@ -120,6 +125,8 @@ Item {
 
         function dbusDefaultZoneChanged(zone) {
             watcher.defaultZone = ZoneLogic.dbusString(zone)
+            // An interface bound to the default zone moves with it, silently.
+            watcher.scheduleZone()
         }
         function dbusReloaded() {
             watcher.refresh()

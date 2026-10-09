@@ -82,6 +82,16 @@ TestCase {
         tryCompare(w, "defaultZone", "drop", 1000)
     }
 
+    // An interface bound to the default zone changes zone with it, and the
+    // fake sends no zone signal for that, only DefaultZoneChanged.
+    function test_default_zone_change_rereads_zone() {
+        var w = make()
+        zoneIs(w, "home")
+        setZone("wlo1", "drop", [])
+        ctl.call(tc, "SetDefaultZone", "(s)", ["drop"])
+        zoneIs(w, "drop")
+    }
+
     function test_reloaded_reads_again() {
         var w = make()
         zoneIs(w, "home")
@@ -173,7 +183,6 @@ TestCase {
         compare(zoneSpy.count, 0)
     }
 
-    // Review focus 3.
     function test_starts_before_firewalld() {
         ctl.call(tc, "StopService", "(s)", [fw])
         var w = make()
@@ -183,11 +192,13 @@ TestCase {
         ctl.call(tc, "StartService", "(s)", [fw])
         zoneIs(w, "home")
         tryCompare(w, "defaultZone", "public", 2000)
+        // Signals must work after a late start too, the fallback is off here.
+        setZone("wlo1", "work", ["ZoneOfInterfaceChanged"])
+        zoneIs(w, "work")
     }
 
-    // Review focus 4. firewalld takes its name before it is ready, and
-    // answers NOT_RUNNING until then. Nothing announces readiness, so the
-    // fallback check is what brings the zone back.
+    // Covers an error answer right after the service returns: the call fails
+    // once, and the fallback check brings the zone back.
     function test_firewalld_not_ready_on_return() {
         var w = make({ fallbackInterval: 500 })
         zoneIs(w, "home")
@@ -202,5 +213,17 @@ TestCase {
         compare(ctl.count(tc, "getZoneOfInterface"), before + 1)
         compare(w.zoneState.error, "stopped")
         zoneIs(w, "home")
+    }
+
+    // A reply that lands after the watcher is gone must not touch it.
+    function test_reply_after_destroy_is_harmless() {
+        failOnWarning(/TypeError/)
+        var w = make()
+        zoneIs(w, "home")
+        ctl.call(tc, "DelayNext", "(su)", ["getZoneOfInterface", 300])
+        w.refresh()
+        wait(100)
+        w.destroy()
+        wait(500)
     }
 }

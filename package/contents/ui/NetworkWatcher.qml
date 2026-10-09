@@ -31,7 +31,8 @@ Item {
             iface = ""
             return
         }
-        function current() { return serial === watcher._serial }
+        // watcher is null once the item is destroyed, with answers still due.
+        function current() { return !!watcher && serial === watcher._serial }
         function fail() {
             if (current())
                 watcher.iface = ""

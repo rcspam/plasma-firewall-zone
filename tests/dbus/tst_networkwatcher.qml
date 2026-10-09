@@ -95,7 +95,6 @@ TestCase {
         tryCompare(w, "iface", "enp3s0", 2000)
     }
 
-    // Review focus 1.
     function test_unrelated_property_change_is_ignored() {
         var w = make()
         tryCompare(w, "iface", "wlo1", 2000)
@@ -106,7 +105,6 @@ TestCase {
         compare(ctl.count(tc, "Get"), before)
     }
 
-    // Review focus 2.
     function test_starts_before_network_manager() {
         ctl.call(tc, "StopService", "(s)", [nm])
         var w = make()
@@ -114,9 +112,11 @@ TestCase {
         compare(w.iface, "")
         ctl.call(tc, "StartService", "(s)", [nm])
         tryCompare(w, "iface", "wlo1", 2000)
+        // Signals must work after a late start too, the fallback is off here.
+        setPrimary("enp3s0", "enp3s0", true)
+        tryCompare(w, "iface", "enp3s0", 1000)
     }
 
-    // Review focus 5.
     function test_error_mid_chain_clears_then_recovers() {
         var w = make()
         tryCompare(w, "iface", "wlo1", 2000)
@@ -125,5 +125,16 @@ TestCase {
         tryCompare(w, "iface", "", 1000)
         setPrimary("enp3s0", "enp3s0", true)
         tryCompare(w, "iface", "enp3s0", 1000)
+    }
+
+    // A reply that lands after the watcher is gone must not touch it.
+    function test_reply_after_destroy_is_harmless() {
+        failOnWarning(/TypeError/)
+        var w = make()
+        tryCompare(w, "iface", "wlo1", 2000)
+        ctl.call(tc, "DelayNext", "(su)", ["Get", 300])
+        w.refresh()
+        w.destroy()
+        wait(500)
     }
 }
