@@ -6,7 +6,7 @@
         "Icon": "security-high",
         "Id": "net.rcspam.firewallzone",
         "Name": "Firewall Zone",
-        "Version": "1.0",
+        "Version": "2.0",
         "License": "GPL-3.0+",
         "EnabledByDefault": true
     },

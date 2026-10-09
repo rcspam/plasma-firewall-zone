@@ -9,22 +9,25 @@ adds no polkit rule.
 
 ## What it can and cannot show
 
-firewalld splits its polkit actions in two families. `FirewallD1.info` is
-`allow_active=yes`, `FirewallD1.config.info` is `auth_admin_keep` — the second
-one pops up a password dialog. The widget polls **only** queries from the first
-family: `--get-zone-of-interface`, `--get-active-zones`, `--get-default-zone`.
+The widget reads everything over D-Bus and starts no process to do so. From
+NetworkManager it takes the interface of the primary connection; from
+firewalld, the zone of that interface and the default zone. Both services send
+a signal on every change and the widget asks again at once. A check every 60 s
+catches a signal that went missing.
 
-Listing the services and ports open in a zone falls in the second family, and
-`/etc/firewalld` is `750 root:root`, so its XML is no help either. That view is
-therefore behind an explicit button in the popup, which warns that it asks for a
-password. Nothing in the polling loop ever authenticates — a guard in the code
-rejects any privileged query added to it later.
+The firewalld calls it makes, `getZoneOfInterface` and `getDefaultZone`, belong
+to the `FirewallD1.info` polkit family, which is `allow_active=yes`. No password
+dialog can come out of them anyway: Plasma's D-Bus plugin never allows
+interactive authorisation, so a call that would need it just fails.
 
-So the two halves of the popup behave differently, on purpose:
+Listing the services and ports open in a zone is another matter. It falls in
+`FirewallD1.config.info`, which is `auth_admin_keep`, and `/etc/firewalld` is
+`750 root:root`, so its XML is no help either. That view is therefore behind an
+explicit button in the popup, which warns that it asks for a password.
 
 | | refresh |
 |---|---|
-| zone, interface, default zone | every 10 s, no authentication |
+| zone, interface, default zone | at once, on firewalld and NetworkManager signals |
 | open services and ports | when you ask, and shows when it was read |
 
 Opening a port elsewhere — in `firewall-config`, or with `firewall-cmd` — is
@@ -43,22 +46,23 @@ reduce it to a badge you cannot read at panel size.
 | green | firewalld running, interface in a trusted zone (`home`, `internal`, `work`, `trusted`) |
 | orange | firewalld running, interface anywhere else — `public`, `block`, `drop`, or a zone the widget does not know |
 | red | firewalld is not running |
-| grey | no network connection |
+| grey | no network connection, or NetworkManager not running |
 
 A stopped firewall outranks the zone: it is the one state worth interrupting
 for. Unknown zones take the cautious colour rather than the reassuring one.
 
 The four colours are settings — right-click the widget, Configure, Colours.
 
-Whether firewalld is up is read with `systemctl is-active firewalld`, which is
-free. `firewall-cmd --state` would have been the obvious choice but reaches
-`FirewallD1.config`, so it asks for a password.
+Whether firewalld is up comes from the bus itself: the widget watches the name
+`org.fedoraproject.FirewallD1`. `firewall-cmd --state` would have been the
+obvious choice but reaches `FirewallD1.config`, so it asks for a password.
 
 ## Requirements
 
-- Plasma 6
-- firewalld, running
-- `iproute2`
+- Plasma 6.4 or later, for the D-Bus signal watcher. On an older Plasma, use
+  release v1.1.
+- firewalld
+- NetworkManager
 
 ## Install
 
@@ -90,15 +94,20 @@ the previously compiled QML stays in use and the update appears to do nothing.
 
 ## Tests
 
-The decision logic lives in `package/contents/ui/ZoneLogic.js`, free of any QML
-dependency, and is covered by `tests/tst_zonelogic.qml`.
-`tests/tst_commandrunner.qml` covers how commands are handed to Plasma's
-executable engine. It runs a few harmless shell commands for real, so it needs
-Plasma 6 installed.
+    tests/run.sh
 
-    qmltestrunner -input tests/
+runs the whole suite. The decision logic lives in
+`package/contents/ui/ZoneLogic.js`, free of any QML dependency, and is covered
+by `tests/tst_zonelogic.qml`. `tests/tst_commandrunner.qml` covers how the two
+button commands are handed to Plasma's executable engine; it runs a few
+harmless shell commands for real. The D-Bus watchers are tested in
+`tests/dbus/` against fake NetworkManager and firewalld services
+(`tests/dbus/fake_services.py`, Python with Gio), on a private session bus that
+`run.sh` starts and tears down.
 
-On distributions where `qmltestrunner` in `PATH` is the qtchooser wrapper still
-pointing at Qt 5, call the Qt 6 binary directly:
+It needs Plasma 6.4, `python3-gi` and `gdbus`. `run.sh` calls
+`/usr/lib/qt6/bin/qmltestrunner`; set `QMLTESTRUNNER` to use another one. Extra
+arguments are passed on to it.
 
-    /usr/lib/qt6/bin/qmltestrunner -input tests/
+`qmltestrunner -input tests/` alone still runs the unit tests and skips the
+D-Bus ones.

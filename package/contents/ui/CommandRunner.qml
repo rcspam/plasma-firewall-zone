@@ -10,7 +10,6 @@
 // to a second on every poll after a few hours.
 import QtQuick
 import org.kde.plasma.plasma5support as Plasma5Support
-import "ZoneLogic.js" as ZoneLogic
 
 Plasma5Support.DataSource {
     id: runner
@@ -21,18 +20,6 @@ Plasma5Support.DataSource {
 
     function run(cmd) {
         connectSource(cmd)
-    }
-
-    // Every periodic query goes through here, which refuses anything that
-    // would raise a polkit dialog. Kept as a hard guard rather than a
-    // convention: one careless firewall-cmd added to the polling loop is
-    // enough to make the widget ask for a password every ten seconds.
-    function poll(cmd) {
-        if (!ZoneLogic.isFreeQuery(cmd)) {
-            console.warn("firewallzone: refusing to poll a privileged query:", cmd)
-            return
-        }
-        run(cmd)
     }
 
     onNewData: function(source, data) {

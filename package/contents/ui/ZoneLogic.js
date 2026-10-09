@@ -27,7 +27,7 @@ function trustLevel(zone) {
 //
 // Order matters. A stopped firewalld is the one state worth interrupting for,
 // so it outranks everything, including a perfectly good zone still reported by
-// the last successful poll. Anything that is not a zone you trust reads as
+// the last successful read. Anything that is not a zone you trust reads as
 // "closed", unknown zones included: guessing in favour of the cautious colour
 // is the safer error.
 function colourKey(state, firewallRunning) {
@@ -36,14 +36,6 @@ function colourKey(state, firewallRunning) {
     if (!state || !state.ok)
         return "offline"
     return trustLevel(state.zone) === "trusted" ? "trusted" : "closed"
-}
-
-// Parses `systemctl is-active firewalld`, which needs no privilege — unlike
-// `firewall-cmd --state`, which goes through a polkit action and would ask for
-// a password on every poll.
-function parseServiceState(stdout) {
-    var s = (stdout || "").trim()
-    return s === "active" || s === "activating"
 }
 
 function iconFor(state) {
@@ -55,33 +47,6 @@ function iconFor(state) {
     case "blocked": return "security-low"
     default:        return "network-wired"
     }
-}
-
-// Parses `firewall-cmd --get-zone-of-interface=<iface>`.
-// Observed on firewalld 2.x / TUXEDO OS 24.04 (stream matters, stdout | stderr):
-//   "home"       | ""                          exit 0    nominal
-//   ""           | "no zone"                   exit 2    interface bound to no zone
-//   ""           | "Error: INVALID_INTERFACE"  exit 104  empty interface name
-//   ""           | "Error: Did not receive..." exit 254  transient D-Bus timeout
-//   ""           | "FirewallD is not running"  exit 252  daemon stopped
-// Only the nominal answer goes to stdout; every diagnostic goes to stderr, so
-// both streams are searched. A zone name can never contain a space, hence
-// matching "no zone" anywhere is unambiguous.
-function parseZone(stdout, stderr, exitCode) {
-    var out = (stdout || "").trim()
-    var both = out + " " + (stderr || "").trim()
-
-    if (both.indexOf("no zone") !== -1)
-        return { ok: false, zone: "", error: "no-zone" }
-    if (both.indexOf("INVALID_INTERFACE") !== -1)
-        return { ok: false, zone: "", error: "offline" }
-    if (both.indexOf("Did not receive a reply") !== -1)
-        return { ok: false, zone: "", error: "busy" }
-    if (both.indexOf("FirewallD is not running") !== -1)
-        return { ok: false, zone: "", error: "stopped" }
-    if (exitCode === 0 && out.length > 0)
-        return { ok: true, zone: out, error: "" }
-    return { ok: false, zone: "", error: "unknown" }
 }
 
 function errorText(code) {
@@ -133,37 +98,6 @@ function parseListAll(stdout) {
         }
     }
     return result
-}
-
-// Which firewall-cmd queries are free of a polkit prompt.
-//
-// firewalld ships two families of polkit actions (see
-// /usr/share/polkit-1/actions/org.fedoraproject.FirewallD1.policy):
-//   org.fedoraproject.FirewallD1.info         allow_active=yes
-//   org.fedoraproject.FirewallD1.config.info  allow_active=auth_admin_keep
-//
-// Anything reaching the second family pops up a password dialog. Measured on
-// firewalld 2.x: --get-active-zones, --get-default-zone and
-// --get-zone-of-interface stay in the first family; --list-services,
-// --list-ports and --state reach the second one.
-//
-// A widget that polls must therefore never run a query outside this list, or
-// it asks for a password every tick. Reading the zone XML instead is not an
-// option: /etc/firewalld is 750 root:root.
-// `systemctl is-active` is a read of unit state and needs no privilege either,
-// unlike `firewall-cmd --state`, which reaches FirewallD1.config.
-var FREE_QUERIES = [
-    "--get-zone-of-interface",
-    "--get-active-zones",
-    "--get-default-zone",
-    "systemctl is-active"
-]
-
-function isFreeQuery(cmd) {
-    for (var i = 0; i < FREE_QUERIES.length; i++)
-        if ((cmd || "").indexOf(FREE_QUERIES[i]) !== -1)
-            return true
-    return false
 }
 
 // The D-Bus plugin hands strings, object paths and variants over as wrapper

@@ -1,5 +1,6 @@
-// Firewall Zone — panel indicator for the active firewalld zone.
-// Read-only by design: every command it runs works as an unprivileged user.
+// Firewall Zone, panel indicator for the active firewalld zone.
+// Read-only by design. State is read over D-Bus without starting any process;
+// a command runs only when one of the two buttons asks for it.
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
@@ -18,13 +19,25 @@ PlasmoidItem {
     Kirigami.Theme.colorSet: Kirigami.Theme.View
     Kirigami.Theme.inherit: false
 
-    property var zoneState: ({ ok: false, zone: "", error: "unknown" })
-    property string iface: ""
-    property string defaultZone: ""
+    NetworkWatcher { id: network }
+    FirewalldWatcher {
+        id: firewall
+        iface: network.iface
+    }
 
-    // Assume the firewall is up until told otherwise, so the alarming colour
-    // never flashes during the first poll.
-    property bool firewallRunning: true
+    readonly property var zoneState: ZoneLogic.effectiveZoneState(network.available, firewall.zoneState)
+    readonly property string iface: network.iface
+    readonly property string defaultZone: firewall.defaultZone
+    readonly property bool firewallRunning: firewall.running
+
+    // The service list describes one zone. Drop it as soon as the state stops
+    // being a zone, or becomes another one.
+    property string detailsZone: ""
+    onZoneStateChanged: {
+        if (!zoneState.ok || zoneState.zone !== detailsZone)
+            clearDetails()
+        detailsZone = zoneState.ok ? zoneState.zone : ""
+    }
 
     readonly property string colourKey: ZoneLogic.colourKey(zoneState, firewallRunning)
     readonly property color stateColour: {
@@ -36,9 +49,9 @@ PlasmoidItem {
         }
     }
 
-    // Services and ports are NOT polled: listing them goes through firewalld's
-    // config.info polkit action, which is auth_admin_keep, so every poll would
-    // raise a password dialog. They are fetched only when the user asks.
+    // Services and ports are not read with the rest: listing them goes through
+    // firewalld's config.info polkit action, which is auth_admin_keep and asks
+    // for a password. They are fetched only when the user asks.
     property var services: []
     property var ports: []
     property bool detailsRequested: false
@@ -50,38 +63,21 @@ PlasmoidItem {
         id: executable
 
         onFinished: function(command, stdout, stderr, code) {
-            if (command.indexOf("route show default") !== -1) {
-                root.iface = stdout.trim()
-                if (root.iface.length === 0) {
-                    root.zoneState = { ok: false, zone: "", error: "offline" }
-                    root.clearDetails()
-                } else {
-                    executable.poll("firewall-cmd --get-zone-of-interface=" + root.iface)
-                }
-            } else if (command.indexOf("get-zone-of-interface") !== -1) {
-                var previous = root.zoneState.zone
-                root.zoneState = ZoneLogic.parseZone(stdout, stderr, code)
-                if (!root.zoneState.ok || root.zoneState.zone !== previous)
-                    root.clearDetails()
-            } else if (command.indexOf("is-active firewalld") !== -1) {
-                root.firewallRunning = ZoneLogic.parseServiceState(stdout)
-            } else if (command.indexOf("get-default-zone") !== -1) {
-                root.defaultZone = stdout.trim()
-            } else if (command.indexOf("--list-all") !== -1) {
-                var details = ZoneLogic.parseListAll(stdout)
-                root.detailsLoading = false
-                if (details.ok) {
-                    root.services = details.services
-                    root.ports = details.ports
-                    // A snapshot, not a live view: firewalld is only asked when
-                    // the user asks, so say when the answer was taken.
-                    root.detailsAt = Qt.formatTime(new Date(), "HH:mm")
-                } else {
-                    // Declined or failed authentication. Offer the button again
-                    // rather than claim the zone has nothing open.
-                    root.detailsRequested = false
-                    root.detailsFailed = true
-                }
+            if (command.indexOf("--list-all") === -1)
+                return
+            var details = ZoneLogic.parseListAll(stdout)
+            root.detailsLoading = false
+            if (details.ok) {
+                root.services = details.services
+                root.ports = details.ports
+                // A snapshot, not a live view: firewalld is only asked when
+                // the user asks, so say when the answer was taken.
+                root.detailsAt = Qt.formatTime(new Date(), "HH:mm")
+            } else {
+                // Declined or failed authentication. Offer the button again
+                // rather than claim the zone has nothing open.
+                root.detailsRequested = false
+                root.detailsFailed = true
             }
         }
     }
@@ -96,7 +92,7 @@ PlasmoidItem {
     }
 
     // Explicit user action only. firewalld asks for a password here, which is
-    // exactly why it is not part of the polling loop. A single --list-all is
+    // exactly why it is not read with the rest. A single --list-all is
     // deliberate: one query, one password prompt.
     function loadDetails() {
         if (!zoneState.ok || detailsLoading)
@@ -106,19 +102,6 @@ PlasmoidItem {
         detailsFailed = false
         executable.run("firewall-cmd --zone=" + zoneState.zone + " --list-all")
     }
-
-    Timer {
-        interval: 10000
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            executable.run("ip -o route show default | awk '{print $5; exit}'")
-            executable.poll("systemctl is-active firewalld")
-        }
-    }
-
-    Component.onCompleted: executable.poll("firewall-cmd --get-default-zone")
 
     compactRepresentation: MouseArea {
         property bool wasExpanded: false
