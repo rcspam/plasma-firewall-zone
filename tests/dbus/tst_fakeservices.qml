@@ -16,12 +16,11 @@ TestCase {
     DBus.DBusServiceWatcher { id: nmWatch; busType: DBus.BusType.Session; watchedService: tc.nm }
     DBus.DBusServiceWatcher { id: fwWatch; busType: DBus.BusType.Session; watchedService: tc.fw }
 
-    function initTestCase() {
+    // Skipped here, before each function: Qt 6.10 only skips the first test
+    // function when skip() is called from initTestCase().
+    function init() {
         if (!ctl.registered)
             skip(ctl.missingMessage)
-    }
-
-    function init() {
         ctl.call(tc, "Reset", "", [])
     }
 
