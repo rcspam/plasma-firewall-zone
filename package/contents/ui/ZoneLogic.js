@@ -90,6 +90,7 @@ function errorText(code) {
     case "offline": return "No network connection"
     case "busy":    return "firewalld is not responding"
     case "stopped": return "firewalld is stopped"
+    case "no-network-manager": return "NetworkManager is not running"
     default:        return "Firewall state unknown"
     }
 }
@@ -163,4 +164,61 @@ function isFreeQuery(cmd) {
         if ((cmd || "").indexOf(FREE_QUERIES[i]) !== -1)
             return true
     return false
+}
+
+// The D-Bus plugin hands strings, object paths and variants over as wrapper
+// objects: `typeof` says "object" and comparing with === against a string
+// fails. String() unwraps every one of them (checked on Plasma 6.6.6).
+function dbusString(value) {
+    return value === undefined || value === null ? "" : String(value)
+}
+
+// D-Bus arrays come as array-like objects, not JS arrays: Array.isArray is
+// false, but length and indices work. Elements are wrapped like any string.
+function firstString(list) {
+    return list && list.length > 0 ? dbusString(list[0]) : ""
+}
+
+// Answer of firewalld's getZoneOfInterface, already unwrapped. An interface
+// bound to no zone, or unknown to firewalld, gets "".
+function zoneFromReply(value) {
+    if (value === "")
+        return { ok: false, zone: "", error: "no-zone" }
+    return { ok: true, zone: value, error: "" }
+}
+
+// Turns a failed D-Bus call into the error codes errorText() knows.
+// firewalld raises org.fedoraproject.FirewallD1.Exception for everything and
+// puts its own code at the start of the message, hence the substring tests.
+function zoneFromError(name, message) {
+    var error = "unknown"
+    if ((message || "").indexOf("INVALID_INTERFACE") !== -1)
+        error = "offline"
+    else if (name === "org.freedesktop.DBus.Error.NoReply"
+             || name === "org.freedesktop.DBus.Error.Timeout")
+        error = "busy"
+    else if (name === "org.freedesktop.DBus.Error.ServiceUnknown"
+             || name === "org.freedesktop.DBus.Error.NameHasNoOwner"
+             || (message || "").indexOf("NOT_RUNNING") !== -1)
+        error = "stopped"
+    return { ok: false, zone: "", error: error }
+}
+
+// NetworkManager names a device twice. IpInterface is what carries the
+// traffic, and the one firewalld knows; it stays empty on a modem that is not
+// up yet, where Interface is the best there is.
+function deviceInterface(ipInterface, interfaceName) {
+    return ipInterface !== "" ? ipInterface : interfaceName
+}
+
+// Without NetworkManager there is no primary interface to look up, and saying
+// "no network connection" would be wrong.
+function effectiveZoneState(networkAvailable, zoneState) {
+    if (!networkAvailable)
+        return { ok: false, zone: "", error: "no-network-manager" }
+    return zoneState
+}
+
+function sameZoneState(a, b) {
+    return !!a && !!b && a.ok === b.ok && a.zone === b.zone && a.error === b.error
 }

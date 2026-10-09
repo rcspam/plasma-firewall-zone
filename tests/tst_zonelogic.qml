@@ -178,8 +178,99 @@ TestCase {
         verify(!ZoneLogic.isFreeQuery("systemctl restart firewalld"))
     }
 
+    // What the D-Bus plugin hands over: strings, object paths and variants come
+    // wrapped in objects that only String() turns back into a JS string.
+    function wrapped(s) {
+        return { value: s, toString: function() { return s } }
+    }
+
+    function test_dbusString_unwraps() {
+        compare(ZoneLogic.dbusString(wrapped("home")), "home")
+        compare(ZoneLogic.dbusString("plain"), "plain")
+        compare(ZoneLogic.dbusString(undefined), "")
+        compare(ZoneLogic.dbusString(null), "")
+    }
+
+    // D-Bus arrays arrive as array-like objects: length and indices work,
+    // Array.isArray does not.
+    function test_firstString() {
+        compare(ZoneLogic.firstString(["/d/1", "/d/2"]), "/d/1")
+        compare(ZoneLogic.firstString({ length: 2, 0: wrapped("/d/1"), 1: wrapped("/d/2") }), "/d/1")
+        compare(ZoneLogic.firstString([]), "")
+        compare(ZoneLogic.firstString({ length: 0 }), "")
+        compare(ZoneLogic.firstString(undefined), "")
+    }
+
+    function test_zoneFromReply() {
+        var r = ZoneLogic.zoneFromReply("home")
+        compare(r.ok, true)
+        compare(r.zone, "home")
+        compare(r.error, "")
+        // firewalld answers "" for an interface bound to no zone.
+        var n = ZoneLogic.zoneFromReply("")
+        compare(n.ok, false)
+        compare(n.zone, "")
+        compare(n.error, "no-zone")
+    }
+
+    function test_zoneFromError_data() {
+        return [
+            { tag: "invalid interface", name: "org.fedoraproject.FirewallD1.Exception", message: "INVALID_INTERFACE: ''", code: "offline" },
+            { tag: "no reply", name: "org.freedesktop.DBus.Error.NoReply", message: "Did not receive a reply", code: "busy" },
+            { tag: "timeout", name: "org.freedesktop.DBus.Error.Timeout", message: "", code: "busy" },
+            { tag: "service unknown", name: "org.freedesktop.DBus.Error.ServiceUnknown", message: "The name was not provided by any .service files", code: "stopped" },
+            { tag: "no owner", name: "org.freedesktop.DBus.Error.NameHasNoOwner", message: "", code: "stopped" },
+            { tag: "not running", name: "org.fedoraproject.FirewallD1.Exception", message: "NOT_RUNNING", code: "stopped" },
+            { tag: "anything else", name: "org.freedesktop.DBus.Error.AccessDenied", message: "", code: "unknown" },
+            { tag: "nothing at all", name: "", message: "", code: "unknown" }
+        ]
+    }
+
+    function test_zoneFromError(data) {
+        var r = ZoneLogic.zoneFromError(data.name, data.message)
+        compare(r.ok, false)
+        compare(r.zone, "")
+        compare(r.error, data.code)
+    }
+
+    // Modems report their IP interface (ppp0, wwan0) apart from the device
+    // name, and leave IpInterface empty until they are up.
+    function test_deviceInterface() {
+        compare(ZoneLogic.deviceInterface("wlo1", "wlo1"), "wlo1")
+        compare(ZoneLogic.deviceInterface("ppp0", "ttyUSB0"), "ppp0")
+        compare(ZoneLogic.deviceInterface("", "wwan0"), "wwan0")
+        compare(ZoneLogic.deviceInterface("", ""), "")
+    }
+
+    function test_effectiveZoneState() {
+        var good = { ok: true, zone: "home", error: "" }
+        verify(ZoneLogic.effectiveZoneState(true, good) === good)
+        var r = ZoneLogic.effectiveZoneState(false, good)
+        compare(r.ok, false)
+        compare(r.zone, "")
+        compare(r.error, "no-network-manager")
+    }
+
+    function test_sameZoneState() {
+        var a = { ok: true, zone: "home", error: "" }
+        verify(ZoneLogic.sameZoneState(a, { ok: true, zone: "home", error: "" }))
+        verify(!ZoneLogic.sameZoneState(a, { ok: false, zone: "home", error: "" }))
+        verify(!ZoneLogic.sameZoneState(a, { ok: true, zone: "work", error: "" }))
+        verify(!ZoneLogic.sameZoneState(a, { ok: true, zone: "home", error: "busy" }))
+        verify(!ZoneLogic.sameZoneState(a, null))
+        verify(!ZoneLogic.sameZoneState(undefined, a))
+    }
+
+    function test_colourKey_without_network_manager() {
+        compare(ZoneLogic.colourKey({ ok: false, zone: "", error: "no-network-manager" }, true), "offline")
+    }
+
+    function test_errorText_network_manager() {
+        compare(ZoneLogic.errorText("no-network-manager"), "NetworkManager is not running")
+    }
+
     function test_errorText_is_never_empty() {
-        var codes = ["no-zone", "offline", "busy", "stopped", "unknown", "nimportequoi"]
+        var codes = ["no-zone", "offline", "busy", "stopped", "no-network-manager", "unknown", "nimportequoi"]
         for (var i = 0; i < codes.length; i++)
             verify(ZoneLogic.errorText(codes[i]).length > 0)
     }
