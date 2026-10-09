@@ -15,6 +15,10 @@ firewalld, the zone of that interface and the default zone. Both services send
 a signal on every change and the widget asks again at once. A check every 60 s
 catches a signal that went missing.
 
+With a full-tunnel VPN, NetworkManager's primary connection is the one carrying
+the tunnel, so the widget shows the zone of the physical interface (for example
+`wlo1`), not of `tun0`. Version 1.1 read `ip route` and showed the tunnel.
+
 The firewalld calls it makes, `getZoneOfInterface` and `getDefaultZone`, belong
 to the `FirewallD1.info` polkit family, which is `allow_active=yes`. No password
 dialog can come out of them anyway: Plasma's D-Bus plugin never allows
@@ -105,7 +109,8 @@ harmless shell commands for real. The D-Bus watchers are tested in
 (`tests/dbus/fake_services.py`, Python with Gio), on a private session bus that
 `run.sh` starts and tears down.
 
-It needs Plasma 6.4, `python3-gi` and `gdbus`. `run.sh` calls
+It needs Plasma 6.4, `python3-gi`, `gdbus` and `dbus-run-session` (package
+`dbus-daemon` or `dbus-bin`, depending on the distribution). `run.sh` calls
 `/usr/lib/qt6/bin/qmltestrunner`; set `QMLTESTRUNNER` to use another one. Extra
 arguments are passed on to it.
 
